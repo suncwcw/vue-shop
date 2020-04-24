@@ -85,7 +85,7 @@ export default {
         const result = this.$http.post('/login', this.loginForm).then(
           res => {
             this.$message.success('login success')
-            console.log(res.data.data.token)
+            // console.log(res.data.data.token)
             window.sessionStorage.setItem('token', res.data.data.token)
             this.$router.push('home')
           },
