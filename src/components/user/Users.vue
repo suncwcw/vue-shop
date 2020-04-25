@@ -1,7 +1,7 @@
 <template>
   <div class="show-user">
     <el-breadcrumb separator-class="el-icon-arrow-right">
-      <el-breadcrumb-item :to="{path:'/home'}">HomePage</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: '/home' }">HomePage</el-breadcrumb-item>
       <el-breadcrumb-item>Manage</el-breadcrumb-item>
       <el-breadcrumb-item>UserList</el-breadcrumb-item>
     </el-breadcrumb>
@@ -9,13 +9,46 @@
     <el-card class="box-card">
       <el-row :gutter="10">
         <el-col :span="8">
-          <el-input placeholder="please input">
-            <el-button slot="append" icon="el-icon-search"></el-button>
+          <el-input
+            placeholder="please input"
+            v-model="queryInfo.query"
+            clearable
+            @clear="getUserList"
+          >
+            <el-button slot="append" icon="el-icon-search" @click="getUserList"></el-button>
           </el-input>
         </el-col>
         <el-col :span="4">
-          <el-button>add users</el-button>
+          <el-button @click="addDialogVisible = true">add users</el-button>
         </el-col>
+        <el-dialog :visible.sync="addDialogVisible" width="50%" @close="addDialogClosed">
+          <!-- 表单添加  prop指定校验规则在 rules 里面写了 -->
+          <el-form
+            :model="addForm"
+            status-icon
+            :rules="addFormRules"
+            ref="addFormRef"
+            label-width="70px"
+          >
+            <!-- prop验证规则属性 -->
+            <el-form-item label="user" prop="username">
+              <el-input v-model="addForm.username"></el-input>
+            </el-form-item>
+            <el-form-item label="pass" prop="password">
+              <el-input v-model="addForm.password"></el-input>
+            </el-form-item>
+            <el-form-item label="email" prop="email">
+              <el-input v-model="addForm.email"></el-input>
+            </el-form-item>
+            <el-form-item label="mobile" prop="mobile">
+              <el-input v-model="addForm.mobile"></el-input>
+            </el-form-item>
+          </el-form>
+          <span slot="footer" class="dialog-footer">
+            <el-button @click="addDialogVisible = false">cancel</el-button>
+            <el-button type="primary" @click="addUser">sure</el-button>
+          </span>
+        </el-dialog>
       </el-row>
     </el-card>
     <el-table :data="userList" stripe style="width: 98% ">
@@ -28,12 +61,17 @@
         <!-- scopez作用域插槽一行的数据 双向绑定 -->
         <template slot-scope="scope">
           <!-- {{scope.row.mg_state}} -->
-          <el-switch v-model="scope.row.mg_state"></el-switch>
+          <el-switch v-model="scope.row.mg_state" @change="userStateChange(scope.row)"></el-switch>
         </template>
       </el-table-column>
       <el-table-column prop="manage" label="manage" width="180">
         <template>
-          <el-button type="success" icon="el-icon-edit" size="mini"></el-button>
+          <el-button
+            type="success"
+            icon="el-icon-edit"
+            size="mini"
+            @click="editDialogVisible = true"
+          ></el-button>
           <el-button type="danger" icon="el-icon-delete" size="mini"></el-button>
           <el-tooltip content="setting" placement="top" size="mini">
             <el-button type="danger" icon="el-icon-delete" size="mini"></el-button>
@@ -42,12 +80,43 @@
         </template>
       </el-table-column>
     </el-table>
+    <el-pagination
+      @size-change="handleSizeChange"
+      @current-change="handleCurrentChange"
+      :current-page="queryInfo.pagenum"
+      :page-sizes="[1, 2, 5, 10]"
+      :page-size="queryInfo.pagesize"
+      layout="total, sizes, prev, pager, next, jumper"
+      :total="total"
+    ></el-pagination>
+    <el-dialog title="提示" :visible.sync="editDialogVisible" width="30%">
+      <span>需要注意的是内容是默认不居中的</span>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="editDialogVisible=false">取 消</el-button>
+        <el-button @click="editDialogVisible=false" type="primary">确 定</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
 <script>
 export default {
   data() {
+    //   自定义规则
+    var checkEmail = (rules, value, cb) => {
+        const regemail = /^[A-Za-z0-9]+([_\.][A-Za-z0-9]+)*@([A-Za-z0-9\-]+\.)+[A-Za-z]{2,6}$/
+        if (regemail.test(value) == true) {
+          return cb()
+        }
+        cb(new Error('input correct email'))
+      },
+      checkMobile = (rules, value, cb) => {
+        const regemobile = /^1(3|4|5|6|7|8|9)\d{9}$/
+        if (regemobile.test(value) == true) {
+          return cb()
+        }
+        cb(new Error('input correct mobile'))
+      }
     return {
       queryInfo: {
         query: '',
@@ -55,7 +124,37 @@ export default {
         pagesize: 2
       },
       userList: [],
-      total: 0
+      total: 0,
+      addDialogVisible: false,
+      editDialogVisible: false,
+      //   添加用户的表单数据ialog
+      addForm: {
+        username: '',
+        passwrod: '',
+        email: '',
+        mobile: ''
+      },
+      //   添加表单验证规则
+      addFormRules: {
+        username: [
+          { required: true, message: 'input username', trigger: 'blur' },
+          { min: 3, max: 10, message: '用户名3到10之间', trigger: 'blur' }
+        ],
+        passwrod: [
+          { required: true, message: 'input password', trigger: 'blur' },
+          { min: 3, max: 10, message: 'password3到10之间', trigger: 'blur' }
+        ],
+        email: [
+          { required: true, message: 'input email ', trigger: 'blur' },
+          { min: 3, max: 10, message: 'email 3到10之间', trigger: 'blur' },
+          { validator: checkEmail, trigger: 'blur' }
+        ],
+        mobile: [
+          { required: true, message: 'input mobile ', trigger: 'blur' },
+          { min: 3, max: 20, message: 'mobile 3到10之间', trigger: 'blur' },
+          { validator: checkMobile, trigger: 'blur' }
+        ]
+      }
     }
   },
   created() {
@@ -68,6 +167,61 @@ export default {
         this.userList = res.data.data.users
         this.total = res.data.data.total
       })
+    },
+    handleSizeChange(newSize) {
+      //   console.log(newSize)
+      this.queryInfo.pagesize = newSize
+      this.getUserList()
+    },
+    handleCurrentChange(newPage) {
+      //   console.log(newPage)
+      this.queryInfo.pagenum = newPage
+      this.getUserList()
+    },
+    userStateChange(userinfo) {
+      this.$http
+        .put(`users/${userinfo.id}/state/${userinfo.mg_state} `)
+        .then(res => {
+          //   console.log(res.data)
+          if (res.data.meta.status != 200) {
+            userinfo.mg_state = !userinfo.mg_state
+            return this.$message.error('failed')
+          }
+          this.$message.success('success')
+        })
+    },
+    handleClose(done) {
+      this.$confirm('确认关闭？')
+        .then(_ => {
+          done()
+        })
+        .catch(_ => {})
+    },
+    // jian ting dialog closed
+    addDialogClosed() {
+      this.$refs.addFormRef.resetFields()
+    },
+    addUser() {
+      // 验证成功了结果为true
+      this.$refs.addFormRef.validate(valid => {
+        if (!valid) {
+          return
+        }
+        //  发起添加的网络请求
+        this.$http.post('/users', this.addForm).then(res => {
+          if (res.data.meta.status !== 201) {
+            this.$message.error('failed')
+          }
+          this.$message.success('success')
+          this.addDialogVisible = false
+          // 刷新列表
+
+          this.getUserList()
+        })
+      })
+    },
+    showEditDialog() {
+      this.editDialogVisible = true
     }
   }
 }
