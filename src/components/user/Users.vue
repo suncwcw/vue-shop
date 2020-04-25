@@ -9,6 +9,7 @@
     <el-card class="box-card">
       <el-row :gutter="10">
         <el-col :span="8">
+          <!-- search input --------------------------------------------------------->
           <el-input
             placeholder="please input"
             v-model="queryInfo.query"
@@ -61,18 +62,26 @@
         <!-- scopez作用域插槽一行的数据 双向绑定 -->
         <template slot-scope="scope">
           <!-- {{scope.row.mg_state}} -->
-          <el-switch v-model="scope.row.mg_state" @change="userStateChange(scope.row)"></el-switch>
+          <el-switch :model="scope.row.mg_state" @change="userStateChange(scope.row)"></el-switch>
         </template>
       </el-table-column>
       <el-table-column prop="manage" label="manage" width="180">
-        <template>
+        <template slot-scope="scope">
+          <!-- edit button------------------------------------------------------------ -->
           <el-button
             type="success"
             icon="el-icon-edit"
             size="mini"
-            @click="editDialogVisible = true"
+            @click="showEditDialog(scope.row.id)"
           ></el-button>
-          <el-button type="danger" icon="el-icon-delete" size="mini"></el-button>
+          <!-- delete button------------------------------------------------------------ -->
+          <el-button
+            type="danger"
+            icon="el-icon-delete"
+            size="mini"
+            @click="removeUserById(scope.row.id)"
+          ></el-button>
+          <!-- delete button------------------------------------------------------------ -->
           <el-tooltip content="setting" placement="top" size="mini">
             <el-button type="danger" icon="el-icon-delete" size="mini"></el-button>
           </el-tooltip>
@@ -89,11 +98,25 @@
       layout="total, sizes, prev, pager, next, jumper"
       :total="total"
     ></el-pagination>
-    <el-dialog title="提示" :visible.sync="editDialogVisible" width="30%">
-      <span>需要注意的是内容是默认不居中的</span>
+    <!-- edit dialog---------------------:rules="editFormRules"-----id: '', rid: '', username: '', mobile: '', email: ''-----------------------ref表单引用----------------- -->
+    <el-dialog title="提示" :visible.sync="editDialogVisible" width="70%" @close="editDialogClosed">
+      <el-form :model="editForm" ref="editFormRef" :rules="editFormRules" width="170px">
+        <el-form-item label="username">
+          <el-input v-model="editForm.username" disabled></el-input>
+        </el-form-item>
+        <el-form-item label="rid">
+          <el-input v-model="editForm.rid"></el-input>
+        </el-form-item>
+        <el-form-item label="mobile">
+          <el-input v-model="editForm.mobile"></el-input>
+        </el-form-item>
+        <el-form-item label="email">
+          <el-input v-model="editForm.email"></el-input>
+        </el-form-item>
+      </el-form>
       <span slot="footer" class="dialog-footer">
         <el-button @click="editDialogVisible=false">取 消</el-button>
-        <el-button @click="editDialogVisible=false" type="primary">确 定</el-button>
+        <el-button type="primary" @click="editUserInfo">确 定</el-button>
       </span>
     </el-dialog>
   </div>
@@ -101,6 +124,7 @@
 
 <script>
 export default {
+  // mydata
   data() {
     //   自定义规则
     var checkEmail = (rules, value, cb) => {
@@ -127,6 +151,7 @@ export default {
       total: 0,
       addDialogVisible: false,
       editDialogVisible: false,
+      deleteDialogVisible: false,
       //   添加用户的表单数据ialog
       addForm: {
         username: '',
@@ -134,6 +159,14 @@ export default {
         email: '',
         mobile: ''
       },
+      deleteForm: {
+        username: '',
+        passwrod: '',
+        email: '',
+        mobile: ''
+      },
+      // edit  id: 579, rid: 82, username: "田淑华", mobile: "18837688767", email: "1987644633@qq.com"}
+      editForm: { id: '', rid: '', username: '', mobile: '', email: '' },
       //   添加表单验证规则
       addFormRules: {
         username: [
@@ -154,6 +187,18 @@ export default {
           { min: 3, max: 20, message: 'mobile 3到10之间', trigger: 'blur' },
           { validator: checkMobile, trigger: 'blur' }
         ]
+      },
+      editFormRules: {
+        email: [
+          { required: true, message: 'input email ', trigger: 'blur' },
+          { min: 3, max: 10, message: 'email 3到10之间', trigger: 'blur' },
+          { validator: checkEmail, trigger: 'blur' }
+        ],
+        mobile: [
+          { required: true, message: 'input mobile ', trigger: 'blur' },
+          { min: 3, max: 20, message: 'mobile 3到10之间', trigger: 'blur' },
+          { validator: checkMobile, trigger: 'blur' }
+        ]
       }
     }
   },
@@ -163,7 +208,7 @@ export default {
   methods: {
     getUserList() {
       this.$http.get('users', { params: this.queryInfo }).then(res => {
-        console.log(res.data.data)
+        // console.log(res.data.data)
         this.userList = res.data.data.users
         this.total = res.data.data.total
       })
@@ -220,8 +265,101 @@ export default {
         })
       })
     },
-    showEditDialog() {
+    // edit function id: 579, rid: 82, username: "田淑华", mobile: "18837688767", email: "1987644633@qq.com"}
+    editUserInfo() {
+      // 校验
+      this.$refs.editFormRef.validate(valid => {
+        if (!valid) {
+          return
+        }
+        this.$http
+          .put('users/' + this.editForm.id, {
+            email: this.editForm.email,
+            mobile: this.editForm.mobile
+          })
+          .then(res => {
+            if (res.data.meta.status != 200) {
+              return this.$message.error('failed')
+            }
+            // close dialog
+            this.editDialogVisible = false
+            // update data
+            this.getUserList()
+            // tip success
+            this.$message.success('success')
+          })
+      })
+    },
+    showEditDialog(id) {
+      this.$http.get('users/' + id).then(res => {
+        if (res.data.meta.status !== 201) {
+          this.$message.error('failed')
+        }
+        this.$message.success('success')
+        this.editForm = res.data.data
+      })
+
       this.editDialogVisible = true
+    },
+    // close dialog
+    editDialogClosed() {
+      this.$refs.editFormRef.resetFields()
+
+      // this.getUserList()
+    },
+    /****************delete function*******************************888*****/
+
+    removeUserById(id) {
+      this.$confirm('此操作将永久删除该文件, 是否继续?', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        center: true
+      })
+        .then(res => {
+          console.log(res)
+          if (res !== 'confirm') {
+            return this.$message.info('already cancel delete')
+          } else {
+            this.$http.delete('users/' + id).then(res => {
+              this.getUserList()
+              console.log(res)
+              return this.$message.success('delete success')
+            })
+          }
+        })
+        .catch(err => {
+          return err
+        })
+    },
+    deleteDialogClosed() {
+      this.$refs.deleteFormRef.resetFields()
+
+      // this.getUserList()
+    },
+    deleteUserInfo() {
+      // 校验
+      this.$refs.deleteFormRef.validate(valid => {
+        if (!valid) {
+          return
+        }
+        this.$http
+          .delete('users/' + this.deleteForm.id, {
+            email: this.deleteForm.email,
+            mobile: this.deleteForm.mobile
+          })
+          .then(res => {
+            if (res.data.meta.status != 200) {
+              return this.$message.error('failed')
+            }
+            // close dialog
+            this.deleteDialogVisible = false
+            // update data
+            this.getUserList()
+            // tip success
+            this.$message.success('success')
+          })
+      })
     }
   }
 }
